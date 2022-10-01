@@ -27,6 +27,7 @@ type Grace struct {
 	SingleExitingHook  Hook           // exiting hooks for single-process mode
 	MultiChildExitHook Hook           // child process exiting hooks for multi-process mode
 	MultiExitingHook   Hook           // master process exiting hooks for multi-process mode
+	MultiReloadHook    Hook           // reloading hooks for multi-process mode
 }
 
 func New() *Grace {
@@ -203,16 +204,22 @@ func (that *Grace) WaitForSingle() {
 	)
 	for {
 		sig := <-that.Signal
-		switch sig {
-		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGQUIT:
-			signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
-			if that.SingleExitingHook == nil {
-				that.SingleExitingHook = func() error {
-					logger.Printf("Parent[%d] is exiting...", os.Getpid())
-					os.Exit(1)
-					return nil
-				}
+		if that.SingleExitingHook == nil {
+			that.SingleExitingHook = func() error {
+				logger.Printf("[Parent]: %d, is exiting...", os.Getpid())
+				os.Exit(0)
+				return nil
 			}
+		}
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGABRT:
+			signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
+			that.Status = GraceExiting
+			that.MaxWaitTime = time.Second // force to exit within 1 second.
+			that.SingleExitingHook()
+			continue
+		case syscall.SIGQUIT:
+			signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
 			that.Status = GraceExiting
 			that.SingleExitingHook()
 			continue
@@ -226,7 +233,78 @@ func (that *Grace) WaitForSingle() {
 }
 
 func (that *Grace) WaitForMulti() {
-
+	pid := os.Getpid()
+	if that.IsChild {
+		signal.Notify(
+			that.Signal,
+			syscall.SIGINT,
+			syscall.SIGQUIT,
+			syscall.SIGKILL,
+			syscall.SIGTERM,
+			syscall.SIGABRT,
+		)
+		for {
+			sig := <-that.Signal
+			logger.Printf("[Child process]: %d, recieve [signal]: %s", pid, sig.String())
+			if that.MultiChildExitHook == nil {
+				that.MultiChildExitHook = func() error {
+					logger.Printf("Child[%d] is exiting...", os.Getpid())
+					os.Exit(0)
+					return nil
+				}
+			}
+			switch sig {
+			case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGABRT:
+				signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
+				that.MaxWaitTime = time.Second // force to exit within 1 second.
+				that.MultiChildExitHook()
+				continue
+			case syscall.SIGQUIT:
+				signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
+				that.MultiChildExitHook()
+				continue
+			default:
+			}
+		}
+	} else {
+		signal.Notify(
+			that.Signal,
+			syscall.SIGINT,
+			syscall.SIGQUIT,
+			syscall.SIGKILL,
+			syscall.SIGTERM,
+			syscall.SIGABRT,
+			syscall.SIGUSR1,
+			syscall.SIGUSR2,
+		)
+		for {
+			sig := <-that.Signal
+			logger.Printf("[Master process]: %d recieve [signal]: %s", pid, sig.String())
+			switch sig {
+			case syscall.SIGINT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM:
+				signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
+				that.MaxWaitTime = time.Second // force to exit within 1 second.
+				if that.MultiExitingHook == nil {
+					logger.Errorf("'MultiExitingHook' is not set!")
+					continue
+				}
+				that.MultiExitingHook()
+				continue
+			case syscall.SIGQUIT:
+				signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
+				if that.MultiExitingHook == nil {
+					logger.Errorf("'MultiExitingHook' is not set!")
+					continue
+				}
+				that.MultiExitingHook()
+				continue
+			case syscall.SIGUSR2:
+				that.MultiReloadHook()
+				continue
+			default:
+			}
+		}
+	}
 }
 
 // Wait wait for signal to come
