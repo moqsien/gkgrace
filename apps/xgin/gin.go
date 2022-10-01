@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/moqsien/gkgrace"
+	"github.com/moqsien/processes/logger"
 )
 
 // graceful wrapper for gin
@@ -21,6 +22,17 @@ type GinGrace struct {
 func New() *GinGrace {
 	return &GinGrace{
 		Engine: gin.New(),
+	}
+}
+
+type IGVisitor interface {
+	ExtraMethod(that *GinGrace) error
+}
+
+// ExtraMethod visitor pattern, add extra method for GinGrace.
+func (that *GinGrace) ExtraMethod(g IGVisitor) {
+	if err := g.ExtraMethod(that); err != nil {
+		logger.Errorf("'ExtraMethod' errored! err: ", err.Error())
 	}
 }
 
