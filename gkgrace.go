@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gogf/gf/os/genv"
 	"github.com/moqsien/processes/logger"
@@ -17,18 +18,24 @@ import (
 
 // Grace gracefully restart is supported only when use tcp and unix domain socket
 type Grace struct {
-	Listeners      *Container     // Listeners
-	IsChild        bool           // true if in child process
-	IsMulti        bool           // true if in multi process mode
-	Signal         chan os.Signal // listen for signals
-	StopSingleFunc func() error   // stop method for single-process mode
+	Status             GraceStatus    // status of current process
+	Listeners          *Container     // Listeners
+	IsChild            bool           // true if in child process
+	IsMulti            bool           // true if in multi process mode
+	Signal             chan os.Signal // listen for signals
+	MaxWaitTime        time.Duration  // maximum wait time
+	SingleExitingHook  Hook           // exiting hooks for single-process mode
+	MultiChildExitHook Hook           // child process exiting hooks for multi-process mode
+	MultiExitingHook   Hook           // master process exiting hooks for multi-process mode
 }
 
 func New() *Grace {
 	return &Grace{
-		Listeners: NewContainer(),
-		IsChild:   IsChildProcess,
-		Signal:    make(chan os.Signal),
+		Status:      GraceUnKnown,
+		Listeners:   NewContainer(),
+		IsChild:     IsChildProcess,
+		Signal:      make(chan os.Signal),
+		MaxWaitTime: DefualtMaxWaitTime,
 	}
 }
 
@@ -54,6 +61,11 @@ func GkListen(addr *Address) (net.Listener, error) {
 // SetToMulti enable multi-process mode
 func (that *Grace) SetToMulti() {
 	that.IsMulti = true
+}
+
+// SetMaxWait set max wait time
+func (that *Grace) SetMaxWait(t time.Duration) {
+	that.MaxWaitTime = t
 }
 
 // Register register a listener before running
@@ -194,17 +206,19 @@ func (that *Grace) WaitForSingle() {
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGQUIT:
 			signal.Reset(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGABRT, syscall.SIGTERM)
-			if that.StopSingleFunc == nil {
-				that.StopSingleFunc = func() error {
+			if that.SingleExitingHook == nil {
+				that.SingleExitingHook = func() error {
 					logger.Printf("Parent[%d] is exiting...", os.Getpid())
 					os.Exit(1)
 					return nil
 				}
 			}
-			that.StopSingleFunc()
+			that.Status = GraceExiting
+			that.SingleExitingHook()
 			continue
 		case syscall.SIGUSR2:
 			that.ReloadSingle()
+			that.Status = GraceReloading
 			continue
 		default:
 		}
