@@ -16,7 +16,7 @@ type GinGrace struct {
 	*gin.Engine
 	Grace    *gkgrace.Grace
 	Address  *gkgrace.Address
-	Listener net.Listener
+	listener net.Listener
 }
 
 func New() *GinGrace {
@@ -34,6 +34,10 @@ func (that *GinGrace) ExtraMethod(g IGVisitor) {
 	if err := g.ExtraMethod(that); err != nil {
 		logger.Errorf("'ExtraMethod' errored! err: ", err.Error())
 	}
+}
+
+func (that *GinGrace) Listener() net.Listener {
+	return that.listener
 }
 
 func (that *GinGrace) SetAddr(addr *gkgrace.Address) {
@@ -64,7 +68,7 @@ func (that *GinGrace) Run(certs ...string) error {
 	if ln == nil {
 		return fmt.Errorf("Cannot get a listener! ")
 	}
-	that.Listener = ln
+	that.listener = ln
 	srv := &http.Server{Addr: that.Address.Addr(), Handler: that}
 	if len(certs) > 1 {
 		// TLS
