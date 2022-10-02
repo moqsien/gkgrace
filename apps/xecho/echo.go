@@ -131,6 +131,7 @@ func (that *EchoGrace) configServer(s *http.Server) error {
 				return fmt.Errorf("Invalid listener!")
 			}
 			that.Echo.Listener = l
+			that.listener = l
 		}
 		if !that.Echo.HidePort {
 			that.colorer.Printf("⇨ http server started on %s\n", that.colorer.Green(that.Echo.Listener.Addr()))
@@ -143,7 +144,9 @@ func (that *EchoGrace) configServer(s *http.Server) error {
 		if l == nil {
 			return fmt.Errorf("Invalid listener!")
 		}
-		that.Echo.TLSListener = tls.NewListener(l, s.TLSConfig)
+		l = tls.NewListener(l, s.TLSConfig)
+		that.Echo.TLSListener = l
+		that.listener = l
 	}
 	if !that.Echo.HidePort {
 		that.colorer.Printf("⇨ https server started on %s\n", that.colorer.Green(that.TLSListener.Addr()))
