@@ -10,6 +10,7 @@ require (
 	github.com/kataras/iris/v12 v12.1.8
 	github.com/labstack/echo/v4 v4.9.0
 	github.com/labstack/gommon v0.3.1
+	github.com/moqsien/niogin v0.0.0-20220815124140-c2140bf2313b
 	github.com/moqsien/processes v1.0.3
 )
 

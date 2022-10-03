@@ -11,6 +11,9 @@ type Address struct {
 }
 
 func (that *Address) String() (s string) {
+	if that.Network == "" {
+		that.Network = "tcp"
+	}
 	switch that.Network {
 	case "unix", "unixpacket":
 		s = fmt.Sprintf("%s@%s", that.Network, that.Sock)
@@ -24,6 +27,9 @@ func (that *Address) String() (s string) {
 }
 
 func (that *Address) Addr() (s string) {
+	if that.Network == "" {
+		that.Network = "tcp"
+	}
 	switch that.Network {
 	case "unix", "unixpacket":
 		s = that.Sock

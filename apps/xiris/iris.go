@@ -3,19 +3,16 @@ package xiris
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/core/host"
-	"github.com/moqsien/gkgrace"
+	"github.com/moqsien/gkgrace/apps/base"
 	"github.com/moqsien/processes/logger"
 )
 
 type IrisGrace struct {
 	*iris.Application
-	Grace       *gkgrace.Grace
-	Address     *gkgrace.Address
-	listener    net.Listener
+	*base.Base
 	hostConfigs []host.Configurator
 	configs     []iris.Configurator
 }
@@ -23,6 +20,7 @@ type IrisGrace struct {
 func New() *IrisGrace {
 	return &IrisGrace{
 		Application: iris.New(),
+		Base:        base.New(),
 	}
 }
 
@@ -34,30 +32,6 @@ func (that *IrisGrace) ExtraMethod(r IRVisitor) {
 	if err := r.ExtraMethod(that); err != nil {
 		logger.Errorf("'ExtraMethod' errored! err: ", err.Error())
 	}
-}
-
-func (that *IrisGrace) Listener() net.Listener {
-	return that.listener
-}
-
-func (that *IrisGrace) SetAddr(addr *gkgrace.Address) {
-	that.Address = addr
-}
-
-func (that *IrisGrace) GetAddr() *gkgrace.Address {
-	if that.Address == nil {
-		// default addr
-		that.Address = &gkgrace.Address{
-			Network: "tcp",
-			Host:    "0.0.0.0",
-			Port:    8080,
-		}
-	}
-	return that.Address
-}
-
-func (that *IrisGrace) SetGrace(grace *gkgrace.Grace) {
-	that.Grace = grace
 }
 
 func (that *IrisGrace) SetHostConfigs(cnfs ...host.Configurator) {
@@ -76,7 +50,7 @@ func (that *IrisGrace) Run(certs ...string) error {
 	if ln == nil {
 		return fmt.Errorf("Cannot get a listener! ")
 	}
-	that.listener = ln
+	that.SetListener(ln)
 	if len(certs) > 1 {
 		cert, err := tls.LoadX509KeyPair(certs[0], certs[1])
 		if err != nil {

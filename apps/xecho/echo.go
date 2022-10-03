@@ -3,14 +3,13 @@ package xecho
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"sync"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/color"
 	"github.com/labstack/gommon/log"
-	"github.com/moqsien/gkgrace"
+	"github.com/moqsien/gkgrace/apps/base"
 	"github.com/moqsien/processes/logger"
 )
 
@@ -31,9 +30,7 @@ const (
 
 type EchoGrace struct {
 	*echo.Echo
-	Grace        *gkgrace.Grace
-	Address      *gkgrace.Address
-	listener     net.Listener
+	*base.Base
 	colorer      *color.Color
 	startupMutex sync.RWMutex
 }
@@ -41,6 +38,7 @@ type EchoGrace struct {
 func New() *EchoGrace {
 	return &EchoGrace{
 		Echo:    echo.New(),
+		Base:    base.New(),
 		colorer: color.New(),
 	}
 }
@@ -55,31 +53,6 @@ func (that *EchoGrace) ExtraMethod(e IEVisitor) {
 	}
 }
 
-func (that *EchoGrace) Listener() net.Listener {
-	return that.listener
-}
-
-func (that *EchoGrace) SetAddr(addr *gkgrace.Address) {
-	that.Address = addr
-	that.Echo.Server.Addr = addr.Addr()
-}
-
-func (that *EchoGrace) GetAddr() *gkgrace.Address {
-	if that.Address == nil {
-		// default addr
-		that.Address = &gkgrace.Address{
-			Network: "tcp",
-			Host:    "0.0.0.0",
-			Port:    8080,
-		}
-	}
-	return that.Address
-}
-
-func (that *EchoGrace) SetGrace(grace *gkgrace.Grace) {
-	that.Grace = grace
-}
-
 func (that *EchoGrace) Run(certs ...string) error {
 	if that.Grace == nil {
 		panic("Grace is not set! Please use SetGrace to set it.")
@@ -88,7 +61,10 @@ func (that *EchoGrace) Run(certs ...string) error {
 	if ln == nil {
 		return fmt.Errorf("Cannot get a listener! ")
 	}
-	that.listener = ln
+	that.SetListener(ln)
+
+	that.Echo.HideBanner = true
+	that.Echo.Server.Addr = that.GetAddr().Addr()
 
 	if len(certs) == 0 {
 		that.startupMutex.Lock()
@@ -135,7 +111,7 @@ func (that *EchoGrace) configServer(s *http.Server) error {
 
 	if s.TLSConfig == nil {
 		if that.Echo.Listener == nil {
-			that.Echo.Listener = that.listener
+			that.Echo.Listener = that.FetchListener()
 		}
 		if !that.Echo.HidePort {
 			that.colorer.Printf("⇨ http server started on %s\n", that.colorer.Green(that.Echo.Listener.Addr()))
@@ -144,7 +120,7 @@ func (that *EchoGrace) configServer(s *http.Server) error {
 	}
 
 	if that.Echo.TLSListener == nil {
-		that.Echo.TLSListener = tls.NewListener(that.listener, s.TLSConfig)
+		that.Echo.TLSListener = tls.NewListener(that.FetchListener(), s.TLSConfig)
 	}
 	if !that.Echo.HidePort {
 		that.colorer.Printf("⇨ https server started on %s\n", that.colorer.Green(that.TLSListener.Addr()))

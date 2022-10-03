@@ -3,23 +3,21 @@ package xfiber
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/moqsien/gkgrace"
+	"github.com/moqsien/gkgrace/apps/base"
 	"github.com/moqsien/processes/logger"
 )
 
 type FiberGrace struct {
 	*fiber.App
-	Grace    *gkgrace.Grace
-	Address  *gkgrace.Address
-	listener net.Listener
+	*base.Base
 }
 
 func New() *FiberGrace {
 	return &FiberGrace{
-		App: fiber.New(),
+		App:  fiber.New(),
+		Base: base.New(),
 	}
 }
 
@@ -33,30 +31,6 @@ func (that *FiberGrace) ExtraMethod(f IFVistor) {
 	}
 }
 
-func (that *FiberGrace) Listener() net.Listener {
-	return that.listener
-}
-
-func (that *FiberGrace) SetAddr(addr *gkgrace.Address) {
-	that.Address = addr
-}
-
-func (that *FiberGrace) GetAddr() *gkgrace.Address {
-	if that.Address == nil {
-		// default addr
-		that.Address = &gkgrace.Address{
-			Network: "tcp",
-			Host:    "0.0.0.0",
-			Port:    8080,
-		}
-	}
-	return that.Address
-}
-
-func (that *FiberGrace) SetGrace(grace *gkgrace.Grace) {
-	that.Grace = grace
-}
-
 func (that *FiberGrace) Run(certs ...string) error {
 	if that.Grace == nil {
 		panic("Grace is not set! Please use SetGrace to set it.")
@@ -65,7 +39,7 @@ func (that *FiberGrace) Run(certs ...string) error {
 	if ln == nil {
 		return fmt.Errorf("Cannot get a listener! ")
 	}
-	that.listener = ln
+	that.SetListener(ln)
 	if len(certs) > 1 {
 		cert, err := tls.LoadX509KeyPair(certs[0], certs[1])
 		if err != nil {

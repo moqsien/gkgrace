@@ -2,11 +2,10 @@ package xgin
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/moqsien/gkgrace"
+	"github.com/moqsien/gkgrace/apps/base"
 	"github.com/moqsien/processes/logger"
 )
 
@@ -14,14 +13,13 @@ import (
 // implementation of IAppBase
 type GinGrace struct {
 	*gin.Engine
-	Grace    *gkgrace.Grace
-	Address  *gkgrace.Address
-	listener net.Listener
+	*base.Base
 }
 
 func New() *GinGrace {
 	return &GinGrace{
 		Engine: gin.New(),
+		Base:   base.New(),
 	}
 }
 
@@ -36,30 +34,6 @@ func (that *GinGrace) ExtraMethod(g IGVisitor) {
 	}
 }
 
-func (that *GinGrace) Listener() net.Listener {
-	return that.listener
-}
-
-func (that *GinGrace) SetAddr(addr *gkgrace.Address) {
-	that.Address = addr
-}
-
-func (that *GinGrace) GetAddr() *gkgrace.Address {
-	if that.Address == nil {
-		// default addr
-		that.Address = &gkgrace.Address{
-			Network: "tcp",
-			Host:    "0.0.0.0",
-			Port:    8080,
-		}
-	}
-	return that.Address
-}
-
-func (that *GinGrace) SetGrace(grace *gkgrace.Grace) {
-	that.Grace = grace
-}
-
 func (that *GinGrace) Run(certs ...string) error {
 	if that.Grace == nil {
 		panic("Grace is not set! Please use SetGrace to set it.")
@@ -68,7 +42,7 @@ func (that *GinGrace) Run(certs ...string) error {
 	if ln == nil {
 		return fmt.Errorf("Cannot get a listener! ")
 	}
-	that.listener = ln
+	that.SetListener(ln)
 	srv := &http.Server{Addr: that.Address.Addr(), Handler: that}
 	if len(certs) > 1 {
 		// TLS
